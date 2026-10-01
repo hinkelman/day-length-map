@@ -7,11 +7,13 @@
   --rule: #e4e1d9;
   --accent: #9a520c;
 
-  /* Sequential amber ramp, light -> dark, blended in OKLab (see .bands). */
-  --r0: #fdedc4;
-  --r1: #f4b54a;
-  --r2: #c46f12;
-  --r3: #5e3007;
+  /* Night-to-day ramp (few days -> every day), blended in OKLab (see .bands).
+     Lightness rises monotonically, so it reads in grayscale and for CVD.
+     Shared by light and dark mode so the meaning never flips. */
+  --r0: #1e1b4b;
+  --r1: #6b2d6e;
+  --r2: #d9792b;
+  --r3: #fdf0b8;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -24,11 +26,6 @@
     --rule: #34322d;
     --accent: #f3c86a;
 
-    /* Dark mode recedes toward the surface at the low end. */
-    --r0: #3a2a0f;
-    --r1: #996a19;
-    --r2: #e3aa3a;
-    --r3: #fde9b8;
   }
 }
 
