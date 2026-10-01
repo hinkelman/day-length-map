@@ -1,5 +1,7 @@
 # Day length map
 
+**Live:** https://hinkelman.github.io/day-length-map/
+
 How many days a year does each part of the contiguous US get at least *X* hours
 of daylight? Drag the slider to pick *X*. You can also switch "day" from
 sunrise–sunset to civil twilight.

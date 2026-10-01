@@ -181,65 +181,15 @@ update msg model =
 
 
 
--- COLOR CLASSES (fills live in style.css so light and dark mode each get their own ramp)
+-- COLOR (the ramp lives in style.css so light and dark mode each get their own)
 
 
-{-| 0 = never, 1–12 = roughly one month of days each, 13 = every day.
+{-| Position on the color ramp, 0 (no days) to 1 (every day), handed to CSS
+as a custom property.
 -}
-binOf : Int -> Int
-binOf days =
-    if days <= 0 then
-        0
-
-    else if days >= 365 then
-        13
-
-    else
-        clamp 1 12 (ceiling (toFloat (days * 12) / 365))
-
-
-binClass : Int -> String
-binClass days =
-    "b" ++ String.fromInt (binOf days)
-
-
-binRange : Int -> String
-binRange bin =
-    let
-        edge k =
-            (365 * k) // 12
-    in
-    case bin of
-        0 ->
-            "0 days"
-
-        13 ->
-            "365 days"
-
-        _ ->
-            String.fromInt (edge (bin - 1) + 1) ++ "–" ++ String.fromInt (min 364 (edge bin)) ++ " days"
-
-
-binLabel : Int -> String
-binLabel bin =
-    case bin of
-        0 ->
-            "Never"
-
-        3 ->
-            "3 mo"
-
-        6 ->
-            "6 mo"
-
-        9 ->
-            "9 mo"
-
-        13 ->
-            "Every day"
-
-        _ ->
-            ""
+rampStyle : Int -> String
+rampStyle days =
+    "--t:" ++ String.fromFloat (toFloat days / 365)
 
 
 
@@ -285,7 +235,7 @@ viewControls model =
             , input
                 [ HA.type_ "range"
                 , HA.min "8"
-                , HA.max "18"
+                , HA.max "16"
                 , HA.step "0.05"
                 , HA.value (String.fromFloat model.threshold)
                 , onInput SetThreshold
@@ -347,7 +297,7 @@ viewBands bands counts =
             (\b ->
                 Svg.path
                     [ SA.d b.path
-                    , SA.class (binClass (Dict.get b.latKey counts |> Maybe.withDefault 0))
+                    , SA.style (rampStyle (Dict.get b.latKey counts |> Maybe.withDefault 0))
                     , Svg.Events.onMouseOver (Hover (Just b.latKey))
                     ]
                     []
@@ -372,18 +322,21 @@ viewLegend : Html msg
 viewLegend =
     div [ HA.class "legend" ]
         [ span [ HA.class "legend-title" ] [ text "Days per year" ]
-        , div [ HA.class "legend-strip" ]
-            (List.map
-                (\bin ->
-                    span [ HA.class "legend-step", HA.title (binRange bin) ]
-                        [ span [ HA.class ("swatch b" ++ String.fromInt bin) ] []
-                        , span [ HA.class "legend-label" ] [ text (binLabel bin) ]
-                        ]
+        , div [ HA.class "legend-scale" ]
+            [ div [ HA.class "legend-bar" ] []
+            , div [ HA.class "legend-ticks" ]
+                (List.map
+                    (\d ->
+                        span
+                            [ HA.class "num"
+                            , HA.style "left" (String.fromFloat (toFloat d / 365 * 100) ++ "%")
+                            ]
+                            [ text (String.fromInt d) ]
+                    )
+                    [ 0, 100, 200, 300, 365 ]
                 )
-                (List.range 0 13)
-            )
+            ]
         ]
-
 
 
 

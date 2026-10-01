@@ -7,21 +7,11 @@
   --rule: #e4e1d9;
   --accent: #9a520c;
 
-  /* Sequential amber ramp (OKLab), light -> dark. b0 = never, b1-b12 = months, b13 = every day. */
-  --b0: #efece4;
-  --b1: #fdedc4;
-  --b2: #fbdea6;
-  --b3: #f9cf87;
-  --b4: #f6bf65;
-  --b5: #f0af45;
-  --b6: #e39b38;
-  --b7: #d68829;
-  --b8: #c87519;
-  --b9: #b16310;
-  --b10: #94510d;
-  --b11: #78400a;
-  --b12: #5e3007;
-  --b13: #3d1e04;
+  /* Sequential amber ramp, light -> dark, blended in OKLab (see .bands). */
+  --r0: #fdedc4;
+  --r1: #f4b54a;
+  --r2: #c46f12;
+  --r3: #5e3007;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -35,20 +25,10 @@
     --accent: #f3c86a;
 
     /* Dark mode recedes toward the surface at the low end. */
-    --b0: #2b2925;
-    --b1: #3a2a0f;
-    --b2: #523b13;
-    --b3: #6c4c16;
-    --b4: #875e18;
-    --b5: #a0701c;
-    --b6: #b38125;
-    --b7: #c8922e;
-    --b8: #dca437;
-    --b9: #e8b656;
-    --b10: #efc779;
-    --b11: #f6d899;
-    --b12: #fde9b8;
-    --b13: #fff6de;
+    --r0: #3a2a0f;
+    --r1: #996a19;
+    --r2: #e3aa3a;
+    --r3: #fde9b8;
   }
 }
 
@@ -132,22 +112,20 @@ svg { display: block; width: 100%; height: auto; }
 
 /* ---- Map ---- */
 
-/* Each band is stroked in its own fill colour to hide anti-aliasing seams between neighbours. */
-.bands path { stroke-width: 1.2; stroke-linejoin: round; }
-.b0 { fill: var(--b0); stroke: var(--b0); background: var(--b0); }
-.b1 { fill: var(--b1); stroke: var(--b1); background: var(--b1); }
-.b2 { fill: var(--b2); stroke: var(--b2); background: var(--b2); }
-.b3 { fill: var(--b3); stroke: var(--b3); background: var(--b3); }
-.b4 { fill: var(--b4); stroke: var(--b4); background: var(--b4); }
-.b5 { fill: var(--b5); stroke: var(--b5); background: var(--b5); }
-.b6 { fill: var(--b6); stroke: var(--b6); background: var(--b6); }
-.b7 { fill: var(--b7); stroke: var(--b7); background: var(--b7); }
-.b8 { fill: var(--b8); stroke: var(--b8); background: var(--b8); }
-.b9 { fill: var(--b9); stroke: var(--b9); background: var(--b9); }
-.b10 { fill: var(--b10); stroke: var(--b10); background: var(--b10); }
-.b11 { fill: var(--b11); stroke: var(--b11); background: var(--b11); }
-.b12 { fill: var(--b12); stroke: var(--b12); background: var(--b12); }
-.b13 { fill: var(--b13); stroke: var(--b13); background: var(--b13); }
+/* Each band gets --t (0-1) from Elm. Three chained OKLab mixes walk the
+   four ramp stops; each segment's share is clamped to 0-1. */
+.bands path {
+  --c: color-mix(in oklab,
+         color-mix(in oklab,
+           color-mix(in oklab, var(--r0), var(--r1) calc(clamp(0, var(--t) * 3, 1) * 100%)),
+           var(--r2) calc(clamp(0, var(--t) * 3 - 1, 1) * 100%)),
+         var(--r3) calc(clamp(0, var(--t) * 3 - 2, 1) * 100%));
+  fill: var(--c);
+  /* Stroked in its own colour to hide anti-aliasing seams between neighbours. */
+  stroke: var(--c);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
 
 .highlight path { fill: var(--ink); fill-opacity: 0.6; stroke: none; pointer-events: none; }
 
@@ -168,13 +146,20 @@ svg { display: block; width: 100%; height: auto; }
 /* ---- Legend ---- */
 
 .legend { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 16px; }
-.legend-title { color: var(--ink-2); font-size: 0.8125rem; padding-top: 1px; }
-.legend-strip { display: grid; grid-template-columns: repeat(14, 28px); gap: 2px; }
-.legend-step { display: flex; flex-direction: column; align-items: center; }
-.swatch { width: 100%; height: 14px; display: block; }
-.legend-step:first-child .swatch { border-radius: 3px 0 0 3px; }
-.legend-step:last-child .swatch { border-radius: 0 3px 3px 0; }
-.legend-label { font-size: 0.75rem; color: var(--ink-3); white-space: nowrap; margin-top: 3px; min-height: 1.2em; }
+.legend-title { color: var(--ink-2); font-size: 0.8125rem; }
+.legend-scale { width: min(320px, 100%); padding: 0 10px; }
+.legend-bar {
+  height: 12px;
+  border-radius: 3px;
+  background: linear-gradient(in oklab to right, var(--r0), var(--r1), var(--r2), var(--r3));
+}
+.legend-ticks { position: relative; height: 1.4em; margin-top: 3px; }
+.legend-ticks span {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
 
 /* ---- Profile chart ---- */
 
