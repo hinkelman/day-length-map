@@ -235,7 +235,7 @@ viewControls model =
             , input
                 [ HA.type_ "range"
                 , HA.min "8"
-                , HA.max "16"
+                , HA.max "18"
                 , HA.step "0.05"
                 , HA.value (String.fromFloat model.threshold)
                 , onInput SetThreshold
