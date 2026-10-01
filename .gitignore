@@ -2,3 +2,7 @@
 elm-stuff
 # elm-repl generated files
 repl-temp-*
+# build output (make)
+public/main.js
+# downloaded source geometry (Rscript data-raw/prepare_geometry.R)
+data-raw/cache/
