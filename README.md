@@ -38,3 +38,9 @@ at the top of the R script):
 ```bash
 make geometry
 ```
+
+## Deploy
+
+`.github/workflows/pages.yml` builds the Elm app and publishes `public/` to
+GitHub Pages on every push to `main`. One-time setup: in the repository's
+**Settings → Pages**, set **Source** to **GitHub Actions**.
