@@ -4,7 +4,8 @@
 
 How many days a year does each part of the contiguous US get at least *X* hours
 of daylight? Drag the slider to pick *X*. You can also switch "day" from
-sunrise–sunset to civil twilight.
+sunrise–sunset to civil twilight. The colors either stretch across the day
+counts currently on the map (relative, the default) or stay fixed at 0–365.
 
 Day length depends only on latitude and date, so the map is a set of latitude
 stripes that curve with the Albers projection. A chart beside it shows the same

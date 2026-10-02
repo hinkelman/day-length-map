@@ -82,8 +82,18 @@ type alias Model =
     , threshold : Float
     , profiles : Dict Int (List Float)
     , counts : Dict Int Int
+    , scale : Scale
+    , domain : ( Float, Float )
     , hovered : Maybe Int
     }
+
+
+{-| Fixed maps 0–365 days onto the color ramp; Relative stretches the ramp
+over the day counts currently on the map.
+-}
+type Scale
+    = Fixed
+    | Relative
 
 
 init : D.Value -> ( Model, Cmd Msg )
@@ -112,6 +122,8 @@ init flags =
       , threshold = 14
       , profiles = Dict.empty
       , counts = Dict.empty
+      , scale = Relative
+      , domain = ( 0, 365 )
       , hovered = Nothing
       }
         |> recomputeProfiles
@@ -136,6 +148,46 @@ recomputeProfiles model =
 recomputeCounts : Model -> Model
 recomputeCounts model =
     { model | counts = Dict.map (\_ -> daysAtLeast model.threshold) model.profiles }
+        |> recomputeDomain
+
+
+{-| The day counts that map to the two ends of the color ramp.
+
+A relative domain never spans less than `minRelativeSpan` days, so that
+near-uniform maps (around the 12 h equinox mark, or 365 everywhere) stay
+near-uniform instead of stretching a few days' difference into full contrast.
+
+-}
+recomputeDomain : Model -> Model
+recomputeDomain model =
+    case model.scale of
+        Fixed ->
+            { model | domain = ( 0, 365 ) }
+
+        Relative ->
+            let
+                values =
+                    Dict.values model.counts |> List.map toFloat
+
+                lo =
+                    List.minimum values |> Maybe.withDefault 0
+
+                hi =
+                    List.maximum values |> Maybe.withDefault 365
+
+                pad =
+                    max 0 ((minRelativeSpan - (hi - lo)) / 2)
+
+                -- Widen around the middle, then slide back inside 0–365.
+                shift =
+                    max 0 (pad - lo) - max 0 (hi + pad - 365)
+            in
+            { model | domain = ( lo - pad + shift, hi + pad + shift ) }
+
+
+minRelativeSpan : Float
+minRelativeSpan =
+    30
 
 
 daysAtLeast : Float -> List Float -> Int
@@ -159,6 +211,7 @@ daysAtLeast hours lengths =
 type Msg
     = SetThreshold String
     | SetDefinition Definition
+    | SetScale Scale
     | Hover (Maybe Int)
 
 
@@ -176,20 +229,23 @@ update msg model =
         SetDefinition d ->
             ( recomputeProfiles { model | definition = d }, Cmd.none )
 
+        SetScale sc ->
+            ( recomputeDomain { model | scale = sc }, Cmd.none )
+
         Hover key ->
             ( { model | hovered = key }, Cmd.none )
 
 
 
--- COLOR (the ramp lives in style.css so light and dark mode each get their own)
+-- COLOR (the ramp itself lives in style.css)
 
 
-{-| Position on the color ramp, 0 (no days) to 1 (every day), handed to CSS
-as a custom property.
+{-| Position on the color ramp, 0 to 1 across the domain, handed to CSS as a
+custom property.
 -}
-rampStyle : Int -> String
-rampStyle days =
-    "--t:" ++ String.fromFloat (toFloat days / 365)
+rampStyle : ( Float, Float ) -> Int -> String
+rampStyle ( lo, hi ) days =
+    "--t:" ++ String.fromFloat (clamp 0 1 ((toFloat days - lo) / max 1 (hi - lo)))
 
 
 
@@ -220,7 +276,7 @@ view model =
                 , div [ HA.class "panels" ]
                     [ div [ HA.class "map-panel" ]
                         [ viewMap geo model
-                        , viewLegend
+                        , viewLegend model
                         ]
                     , viewProfile model
                     ]
@@ -244,26 +300,42 @@ viewControls model =
                 []
             , span [ HA.class "num value" ] [ text (formatHours model.threshold) ]
             ]
-        , div [ HA.class "segmented", HA.attribute "role" "radiogroup" ]
-            (List.map (definitionButton model.definition) [ SunriseSunset, CivilTwilight ])
+        , segmented "Day definition" Solar.definitionLabel SetDefinition model.definition [ SunriseSunset, CivilTwilight ]
+        , segmented "Color scale" scaleLabel SetScale model.scale [ Relative, Fixed ]
         ]
 
 
-definitionButton : Definition -> Definition -> Html Msg
-definitionButton current d =
-    Html.button
-        [ HA.classList [ ( "active", current == d ) ]
-        , HA.attribute "role" "radio"
-        , HA.attribute "aria-checked"
-            (if current == d then
-                "true"
+scaleLabel : Scale -> String
+scaleLabel sc =
+    case sc of
+        Fixed ->
+            "Fixed 0–365"
 
-             else
-                "false"
+        Relative ->
+            "Relative"
+
+
+segmented : String -> (a -> String) -> (a -> Msg) -> a -> List a -> Html Msg
+segmented name toLabel toMsg current options =
+    div [ HA.class "segmented", HA.attribute "role" "radiogroup", HA.attribute "aria-label" name ]
+        (List.map
+            (\opt ->
+                Html.button
+                    [ HA.classList [ ( "active", opt == current ) ]
+                    , HA.attribute "role" "radio"
+                    , HA.attribute "aria-checked"
+                        (if opt == current then
+                            "true"
+
+                         else
+                            "false"
+                        )
+                    , Html.Events.onClick (toMsg opt)
+                    ]
+                    [ text (toLabel opt) ]
             )
-        , Html.Events.onClick (SetDefinition d)
-        ]
-        [ text (Solar.definitionLabel d) ]
+            options
+        )
 
 
 viewMap : Geometry -> Model -> Html Msg
@@ -282,7 +354,7 @@ viewMap geo model =
         , SA.class "map"
         , Svg.Events.on "mouseleave" (D.succeed (Hover Nothing))
         ]
-        [ Svg.Lazy.lazy2 viewBands geo.bands model.counts
+        [ Svg.Lazy.lazy3 viewBands geo.bands model.domain model.counts
         , Svg.g [ SA.class "highlight" ] (List.map (\b -> Svg.path [ SA.d b.path ] []) hoveredBands)
         , Svg.path [ SA.d geo.states, SA.class "states" ] []
         , Svg.path [ SA.d geo.nation, SA.class "outline" ] []
@@ -290,14 +362,14 @@ viewMap geo model =
         ]
 
 
-viewBands : List Band -> Dict Int Int -> Svg Msg
-viewBands bands counts =
+viewBands : List Band -> ( Float, Float ) -> Dict Int Int -> Svg Msg
+viewBands bands domain counts =
     Svg.g [ SA.class "bands" ]
         (List.map
             (\b ->
                 Svg.path
                     [ SA.d b.path
-                    , SA.style (rampStyle (Dict.get b.latKey counts |> Maybe.withDefault 0))
+                    , SA.style (rampStyle domain (Dict.get b.latKey counts |> Maybe.withDefault 0))
                     , Svg.Events.onMouseOver (Hover (Just b.latKey))
                     ]
                     []
@@ -318,22 +390,44 @@ viewParallel par =
         ]
 
 
-viewLegend : Html msg
-viewLegend =
+viewLegend : Model -> Html msg
+viewLegend model =
+    let
+        ( lo, hi ) =
+            model.domain
+
+        -- Fixed: round-number ticks. Relative: five even steps across the domain.
+        ticks =
+            case model.scale of
+                Fixed ->
+                    List.map (\d -> ( d / 365, d )) [ 0, 100, 200, 300, 365 ]
+
+                Relative ->
+                    List.map (\i -> ( toFloat i / 4, lo + (hi - lo) * toFloat i / 4 )) (List.range 0 4)
+    in
     div [ HA.class "legend" ]
-        [ span [ HA.class "legend-title" ] [ text "Days per year" ]
+        [ span [ HA.class "legend-title" ]
+            [ text
+                (case model.scale of
+                    Fixed ->
+                        "Days per year"
+
+                    Relative ->
+                        "Days per year, scaled to this map"
+                )
+            ]
         , div [ HA.class "legend-scale" ]
             [ div [ HA.class "legend-bar" ] []
             , div [ HA.class "legend-ticks" ]
                 (List.map
-                    (\d ->
+                    (\( pos, d ) ->
                         span
                             [ HA.class "num"
-                            , HA.style "left" (String.fromFloat (toFloat d / 365 * 100) ++ "%")
+                            , HA.style "left" (String.fromFloat (pos * 100) ++ "%")
                             ]
-                            [ text (String.fromInt d) ]
+                            [ text (String.fromInt (round d)) ]
                     )
-                    [ 0, 100, 200, 300, 365 ]
+                    ticks
                 )
             ]
         ]
