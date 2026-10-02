@@ -309,7 +309,7 @@ scaleLabel : Scale -> String
 scaleLabel sc =
     case sc of
         Fixed ->
-            "Fixed 0–365"
+            "Fixed"
 
         Relative ->
             "Relative"
